@@ -1,4 +1,5 @@
 import numpy as np
+import torch
 
 class FrankWolfeOptimizer:
     def __init__(self, objective_func, gradient_func, constraint_func, initial_point, max_iter=1000, tol=1e-6):
@@ -33,7 +34,7 @@ class FrankWolfeOptimizer:
             s = self.linear_minimization(grad)
             
             # Step 3: Compute the step size (using a fixed step size or line search)
-            gamma = self.line_search(s)
+            gamma = self.line_search(s, k)
             
             # Step 4: Update the current point
             new_x = (1 - gamma) * self.x + gamma * s
@@ -59,7 +60,7 @@ class FrankWolfeOptimizer:
         s = self.constraint_func(grad)
         return s
     
-    def line_search(self, s):
+    def line_search(self, s, k):
         """
         Perform a line search to find the optimal step size gamma.
         
@@ -88,6 +89,18 @@ x0 = np.array([0.5, 0.5])
 # Instantiate and run the optimizer
 optimizer = FrankWolfeOptimizer(objective_func, gradient_func, constraint_func, x0)
 optimal_point, optimal_value = optimizer.optimize()
+
+# Create a tensor with requires_grad=True to enable automatic differentiation
+x = torch.tensor(2.0, requires_grad=True)
+
+# Define a simple function
+y = x**2 + 3*x + 2
+
+# Compute the gradient (derivative) of y with respect to x
+y.backward()
+
+# Access the gradient of x
+print(x.grad)
 
 # Output the result
 print(f"Optimal point: {optimal_point}")
