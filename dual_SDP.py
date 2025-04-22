@@ -72,25 +72,37 @@ class SDPProblem:
     
     def solve(self):
         prob = cp.Problem(self.objective, self.constraints)
-        prob.solve(solver=cp.MOSEK, verbose=True)
+        prob.solve(solver=cp.MOSEK, verbose=False)
         return prob.value, self.mu.value, self.M.value, self.K.value, self.N.value, self.L.value, self.Lambda.value
 
 if __name__ == "__main__":
-    lqg = LQGSystem(n_x=100, n_u=4, n_y=20, T=2)
-    sdp = SDPProblem(lqg)
-    optimal_value, mu_opt, M_opt, K_opt, N_opt, L_opt, Lambda_opt = sdp.solve()
-    # print("Optimal value:", optimal_value)
-    # print("Optimal mu:", mu_opt)
-    # print("Optimal M:", M_opt)
-    # print("Optimal K:", K_opt)
-    # print("Optimal N:", N_opt)
-    # print("Optimal L:", L_opt)
-    # print("Optimal Lambda:", Lambda_opt)
-    Sigma_opt = M_opt - mu_opt @ mu_opt.T
+    optimal_values = []
+    optimal_means = []
+    optimal_covariances = []
+    for T in range(100,101):
+        print(T)
+        lqg = LQGSystem(n_x=2, n_u=1, n_y=1, T=T)
+        sdp = SDPProblem(lqg)
+        optimal_value, mu_opt, M_opt, K_opt, N_opt, L_opt, Lambda_opt = sdp.solve()
+        # print("Optimal value:", optimal_value)
+        # print("Optimal mu:", mu_opt)
+        # print("Optimal M:", M_opt)
+        # print("Optimal K:", K_opt)
+        # print("Optimal N:", N_opt)
+        # print("Optimal L:", L_opt)
+        # print("Optimal Lambda:", Lambda_opt)
+        Sigma_opt = M_opt - mu_opt @ mu_opt.T
 
-    print("mu diff:", np.max(np.abs(mu_opt - sdp.LQG.mu_hat)))
-    print("sigma diff:", np.max(np.abs(Sigma_opt - sdp.LQG.Sigma_hat)))# - 2 * sp.linalg.sqrtm(sp.linalg.sqrtm(sdp.Sigma_hat) @ Sigma_opt @ sp.linalg.sqrtm(sdp.Sigma_hat)))) )
-    print("squared gelbrich distance:", np.sum(np.linalg.norm(mu_opt - sdp.LQG.mu_hat)**2 + np.linalg.norm(np.trace(Sigma_opt + sdp.LQG.Sigma_hat - 2 * sp.linalg.sqrtm(sp.linalg.sqrtm(sdp.LQG.Sigma_hat) @ Sigma_opt @ sp.linalg.sqrtm(sdp.LQG.Sigma_hat))))) )
+        print("mu diff:", np.max(np.abs(mu_opt - sdp.LQG.mu_hat)))
+        print("sigma diff:", np.max(np.abs(Sigma_opt - sdp.LQG.Sigma_hat)))# - 2 * sp.linalg.sqrtm(sp.linalg.sqrtm(sdp.Sigma_hat) @ Sigma_opt @ sp.linalg.sqrtm(sdp.Sigma_hat)))) )
+        print("squared gelbrich distance:", np.sum(np.linalg.norm(mu_opt - sdp.LQG.mu_hat)**2 + np.linalg.norm(np.trace(Sigma_opt + sdp.LQG.Sigma_hat - 2 * sp.linalg.sqrtm(sp.linalg.sqrtm(sdp.LQG.Sigma_hat) @ Sigma_opt @ sp.linalg.sqrtm(sdp.LQG.Sigma_hat))))) )
 
-    print(Sigma_opt)
-    print(mu_opt)
+        #print(Sigma_opt)
+        #print(mu_opt)
+        print("Optimal value:", optimal_value)
+        optimal_values.append(optimal_value)
+        optimal_means.append(mu_opt)
+        optimal_covariances.append(Sigma_opt)
+    np.save("optimal_values_SDP.npy", optimal_values)
+    np.save("optimal_means_SDP.npy", optimal_means)
+    np.save("optimal_covariances_SDP.npy", optimal_covariances)

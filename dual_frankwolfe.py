@@ -104,13 +104,14 @@ class FrankWolfeOptimizer:
 
 
         lambda_1 = torch.linalg.eigh(grad_Sigma)[0][-1] # largest eigenvalue (ascending order)
-        #v_1 = torch.linalg.eigh(grad_Sigma)[1][:, -1] # corresponding eigenvector
+        v_1 = torch.linalg.eigh(grad_Sigma)[1][:, -1] # corresponding eigenvector
 
         # Compute the linearization oracle via bisection
         gamma_low = torch.max(torch.tensor(0), lambda_1)
         gamma_high = torch.max(torch.norm(grad_mu)**2/(self.LQG.rho * np.sqrt(2)), lambda_1 * (1 + torch.sqrt(2 * torch.trace(Sigma_hat)) / self.LQG.rho)) # 0.5 * lambda_1 * (1 + torch.sqrt(torch.trace(Sigma_hat)) / self.LQG.rho) # fix tomorrow so tht mu is there! use your formula instead
         #100*lambda_1 * (1 + torch.sqrt(torch.trace(Sigma_hat)) / self.LQG.rho) # fix tomorrow so tht mu is there! use your formula instead
-        
+        #gamma_low = lambda_1 * (1 + torch.sqrt(v_1 @ Sigma_hat @ v_1) / self.LQG.rho) # 0.5 * lambda_1 * (1 + torch.sqrt(torch.trace(Sigma_hat)) / self.LQG.rho) # fix tomorrow so tht mu is there! use your formula instead
+        #gamma_high = lambda_1 * (1 + torch.sqrt(torch.trace(Sigma_hat)) / self.LQG.rho) # fix tomorrow so tht mu is there! use your formula instead
 
         phi = lambda gamma: gamma**2 * torch.trace(torch.linalg.inv(gamma * torch.eye(self.LQG.N_xi) - grad_Sigma) @ Sigma_hat) + gamma * (self.LQG.rho**2 - torch.trace(Sigma_hat)) + torch.linalg.norm(grad_mu,2)**2 / (4 * gamma) + grad_mu.T @ mu_hat - torch.trace(grad_Sigma @ self.Sigma) - grad_mu.T @ self.mu
         dphi = lambda gamma: self.LQG.rho**2 - torch.trace( Sigma_hat @ torch.linalg.matrix_power(torch.eye(self.LQG.N_xi) - gamma * torch.linalg.inv(gamma * torch.eye(self.LQG.N_xi) - grad_Sigma) , 2) ) - torch.linalg.norm(grad_mu,2)**2 / (4 * gamma**2)
@@ -162,42 +163,53 @@ class FrankWolfeOptimizer:
             # Step 3: Check for convergence (e.g., change in parameters or objective value)
             if torch.sqrt(torch.norm(self.Sigma - Sigma_old)**2 + torch.norm(self.mu - mu_old)**2) < self.tol:
                 print(f"Converged at iteration {k}.")
-                return np.array(self.mu.detach()), np.array(self.Sigma.detach()), self.objective_func.item()
+                return self.objective_func.item(), np.array(self.mu.detach()), np.array(self.Sigma.detach())
             
             print(f"Iteration {k}: Objective value = {self.objective_func.item()}, mu norm = {torch.norm(self.mu).item()}, Sigma norm = {torch.norm(self.Sigma).item()}")
         
         print("Max iterations reached.")
-        return np.array(self.mu.detach()), np.array(self.Sigma.detach()), self.objective_func.item()
+        return self.objective_func.item(), np.array(self.mu.detach()), np.array(self.Sigma.detach())
     
 if __name__ == "__main__":
+    optimal_values = []
+    optimal_means = []
+    optimal_covariances = []
     # unit test
-    lqg = LQGSystem(n_x=5, n_u=2, n_y=2, T=80)
-    optimizer = FrankWolfeOptimizer(lqg, max_iter=100, delta=1 - 1e-6, tol=1e-4)
-    
-    # cost function test
-    optimizer.compute_cost()
-    U_test = np.random.randn(lqg.N_u, lqg.N_y)
-    Z_test = np.array(optimizer.Z)
-    flat_U_test = U_test.T.flatten()
-    if Z_test.shape[0] > 0:
-        # plt.spy(Z_test.T @ Z_test)
-        # plt.show()
-        assert np.linalg.matrix_rank(Z_test) == Z_test.shape[0]
-        column_indices = np.nonzero(Z_test)[1]
-        complem_column_indices = np.setdiff1d(np.arange(lqg.N_u * lqg.N_y), column_indices)
-        print(column_indices)
-        print(np.sum(Z_test, axis=1))
-        flat_U_test[column_indices] = 0
-    U_strict_u_tril = flat_U_test.reshape((lqg.N_y, lqg.N_u)).T
-    plt.spy(U_strict_u_tril)
-    plt.show()
+    for T in range(8,25):
+        lqg = LQGSystem(n_x=2, n_u=2, n_y=2, T=T)
+        optimizer = FrankWolfeOptimizer(lqg, max_iter=100, delta=1 - 1e-5, tol=1e-3)
+        
+        # cost function test
+        optimizer.compute_cost()
+        U_test = np.random.randn(lqg.N_u, lqg.N_y)
+        Z_test = np.array(optimizer.Z)
+        flat_U_test = U_test.T.flatten()
+        if Z_test.shape[0] > 0:
+            # plt.spy(Z_test.T @ Z_test)
+            # plt.show()
+            assert np.linalg.matrix_rank(Z_test) == Z_test.shape[0]
+            column_indices = np.nonzero(Z_test)[1]
+            complem_column_indices = np.setdiff1d(np.arange(lqg.N_u * lqg.N_y), column_indices)
+            #print(column_indices)
+            #print(np.sum(Z_test, axis=1))
+            flat_U_test[column_indices] = 0
+        U_strict_u_tril = flat_U_test.reshape((lqg.N_y, lqg.N_u)).T
+        #plt.spy(U_strict_u_tril)
+        #plt.show()
 
 
 
-    # Run the optimization
-    mu_optimal, Sigma_optimal, optimal_value = optimizer.optimize()
+        # Run the optimization
+        mu_optimal, Sigma_optimal, optimal_value = optimizer.optimize()
 
-    # Output the result
-    print(f"Optimal mu:\n{mu_optimal}")
-    print(f"Optimal Sigma:\n{Sigma_optimal}")
-    print(f"Optimal value: {optimal_value}")
+        # Output the result
+        #print(f"Optimal mu:\n{mu_optimal}")
+        #print(f"Optimal Sigma:\n{Sigma_optimal}")
+        print(f"Optimal value: {optimal_value}")
+        optimal_values.append(optimal_value)
+        optimal_means.append(mu_optimal)
+        optimal_covariances.append(Sigma_optimal)
+        # Save the results
+    #np.save("optimal_values_fw.npy", optimal_values)
+    #np.save("optimal_means_fw.npy", optimal_means)
+    #np.save("optimal_covariances_fw.npy", optimal_covariances)
